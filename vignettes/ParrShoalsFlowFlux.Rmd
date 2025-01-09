@@ -286,6 +286,11 @@ flux1 <- flux0 |>
   
 ```
 
+```{r eval=F}
+flux <- flux1 
+usethis::use_data(flux, overwrite=T)
+```
+
 ```{r warning=FALSE}
 flux1 |>
   dplyr::filter(outflow_type == 'Gate operation') |>
