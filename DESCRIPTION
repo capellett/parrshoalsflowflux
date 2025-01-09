@@ -5,7 +5,7 @@ Authors@R:
     person("C A", "Pellett", , "c.alex.pellett@gmail.com", role = c("aut", "cre"))
 Description: What the package does (one paragraph).
 License: MIT + file LICENSE
-URL: https://github.com/capellett/parrshoalsflowflux
+URL: https://github.com/capellett/parrshoalsflowflux, https://capellett.github.io/parrshoalsflowflux/
 BugReports: https://github.com/capellett/parrshoalsflowflux/issues
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

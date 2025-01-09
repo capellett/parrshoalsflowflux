@@ -1,0 +1,313 @@
+---
+title: "Flow Fluctuation Metrics for Parr Shoals Reservoir Releases"
+author: "CA Pellett"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{intro}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+# Introduction
+
+Similar to many reservoirs in SC and globally, the streamflow downstream of the Parr Shoals dam often vary widely from hour to hour in an un-natural pattern caused by operations at the combined Parr Shoals-Monticello hydro and nuclear power projects. These artificial flow fluctuations can have detrimental impacts on the aquatic community, particularly during fish spawning periods. Recently, the dam operators have been demonstrating significant improvements in reducing these artificial flow fluctuations.  
+
+I have attended meetings related to the FERC re-licensing of Parr Shoals and Monticello reservoirs for most of my career at SC DNR. I started in 2015, some time after the relicensing process had begun for this project, which followed multiple other relicensing projects for other reservoirs in SC. That is to say, there has always been a great deal of experience around the table, and I've learned a lot from participating. My own contributions have been, at most, minor, but the aspects related to the managed reservoir releases of water downstream have always held my interest; this is where my other experience of surface water modelling across the state seems most relevant.
+
+In discussions with stakeholders on both sides of the table, it had seemed, to me, that significant improvements to the flow fluctuations might be unlikely, as there are a number of operational constraints and the costs of retro-fitting appeared astronomical. I have been delighted to see the innovative, cutting-edge, and apparently cost-effective solutions which have been implemented. The Parr Shoals operators have demonstrated significant and profound improvements - reducing the artificial flow fluctuations to provide  more stable habitat downstream. With this increased capacity to modulate gate positions in response to varying reservoir levels, I propose that now is a timely opportunity to revisit and refine the metrics by which we evaluate flow-fluctuations. The metrics which have been used have been sufficient to demonstrate the improvements over time. However, as I've noted in previous comments, there are some limitations to those metrics which could confound the analysis. Now that a greater level of capability has been achieved, the AMP committee has an opportunity to fine-tune the metrics, potentially spurring further improvements without further costs. I want to be clear, this is not a critique of past efforts - my proposal of further refinement to the metrics is motivated by the demonstrable success of past efforts by the operators and their consultants.
+
+## System Parameters
+
+### Spawning Periods
+
+### Hydro-electric Turbine Outflows
+Below 4,800 cfs, all outflows are through the hydro-power turbines. That number will be lower if some turbines are not operational, and higher if the turbine capacity is increased.
+
+### Spill Release Outflows
+When outflow is greater than 40,000 cfs, all gates are lowered to prevent damage to the dam.
+
+### Gate speed
+
+### Number of Gates
+Gate overtopping flow-stage curves.
+
+# Hydrology Data
+```{r data-download, eval=F, echo=F}
+### This takes a few minutes to run. 
+### Install the dataRetrieval package (developed by USGS), if needed.
+# install.packages('dataRetrieval')
+
+tyger0 <- dataRetrieval::readNWISuv(
+  siteNumbers = '02160105', parameterCd = c('00060', '00065'))
+
+enoree0 <- dataRetrieval::readNWISuv(
+  siteNumbers = '02160700', parameterCd = c('00060', '00065'))
+
+broad0 <- dataRetrieval::readNWISuv(
+  siteNumbers = '02156500', parameterCd = c('00060', '00065'))
+
+alston0 <- dataRetrieval::readNWISuv(
+  siteNumbers = '02161000', parameterCd = c('00060', '00065'))
+
+parr0 <- dataRetrieval::readNWISuv(
+  siteNumbers = '02160990', parameterCd = '00065')
+
+saveRDS(tyger0, '../data-raw/tyger0.rds')
+saveRDS(enoree0, '../data-raw/enoree0.rds')
+saveRDS(broad0, '../data-raw/broad0.rds')
+saveRDS(alston0, '../data-raw/alston0.rds')
+saveRDS(parr0, '../data-raw/parr0.rds')
+```
+
+### Gaged Inflows
+```{r}
+inflow_prep_function <- function(x) {
+  x |>
+  dplyr::arrange(dateTime) |>
+  dplyr::mutate(dateTime_lag1 = dplyr::lag(dateTime),
+                time_interval = lubridate::interval(
+                  dateTime_lag1, dateTime) |>
+                  lubridate::as.duration())
+}
+
+```
+
+#### Tyger River Near Delta
+USGS Gage No. 02160105 drains 759 sqmi.
+```{r}
+tyger0 <- readRDS('../data-raw/tyger0.rds') |>
+  inflow_prep_function()
+```
+
+#### Enoree River at Whitmire
+USGS Gage No. 02160700 drains 444 sqmi.
+```{r}
+enoree0 <- readRDS('../data-raw/enoree0.rds') |>
+  inflow_prep_function()
+```
+
+#### Broad River at Carlisle
+USGS Gage No. 02156500 drains 2,780 sqmi.
+```{r}
+broad0 <- readRDS('../data-raw/broad0.rds') |>
+  inflow_prep_function()
+```
+
+### Gaged Outflow 
+#### Broad River at Jenkinsville
+USGS Gage No. 02160991 drains 4,750 sqmi.
+
+#### Broad River at Alston
+USGS Gage No. 02160000 drains 4,790 sqmi
+```{r}
+alston0 <- readRDS('../data-raw/alston0.rds') |>
+  inflow_prep_function()
+```
+
+
+### Combined Flow Dataset
+The three inflow datasets are combined to estimate total inflow. A simple sum has been used. Perhaps that can be refined. Lets review the data availability from the four stream gages first.
+```{r}
+flows0 <- dplyr::bind_rows(
+  Broad=broad0, Enoree=enoree0, Tyger=tyger0, Alston=alston0, .id = 'gage')
+```
+
+#### Timestep Assessment
+The different stream gage datasets may have different timesteps over time. Let's assess that graphically.
+```{r}
+## y = time_interval x = date
+# time_interval_plot2 <- function(x) {x |>
+flows0 |>
+  ggplot2::ggplot(
+    ggplot2::aes(x=dateTime, y=time_interval)) +
+  ggplot2::geom_point(size=0.1) +
+  ggplot2::scale_y_log10(
+    breaks=c(60, 900, 3600, 86400, 604800, 2592000,
+            31536000, 315360000, 3153600000),
+    minor_breaks = NULL,
+    labels=c("1m", '15m', "1h","1d","7d","30d",
+            "1y", "10y", "100y")) +
+  ggplot2::theme_bw() +
+  ggplot2::facet_wrap('gage', ncol=1)
+# }
+```
+The graph above shows that the gages generally have hourly data available starting after 1985 and 15-minute data starting around 2020. It looks like the Alston gage has 15 minute data going way back. That could be useful to show improvement over time.
+
+```{r}
+flows1 <- flows0 |>
+  dplyr::select(gage, dateTime, flow = X_00060_00000) |>
+  tidyr::pivot_wider(names_from = gage, values_from=flow) |>
+  dplyr::filter(
+    !is.na(Broad) & !is.na(Enoree) & 
+      !is.na(Tyger) & !is.na(Alston)) |>
+  inflow_prep_function()
+```
+
+```{r combined-time-interval-plot}
+flows1 |>
+  ggplot2::ggplot(
+    ggplot2::aes(x=dateTime, y=time_interval)) +
+  ggplot2::geom_point(size=0.1) +
+  ggplot2::scale_y_log10(
+    breaks=c(60, 900, 3600, 86400, 604800, 2592000,
+            31536000, 315360000, 3153600000),
+    minor_breaks = NULL,
+    labels=c("1m", '15m', "1h","1d","7d","30d",
+            "1y", "10y", "100y")) +
+  ggplot2::theme_bw()
+
+```
+Apparently, there is very little missing data since the 15-minute observations began for all gages.
+
+#### Missing data assessment
+```{r combined-missing-data-plot}
+flows2 <- flows1 |>
+  dplyr::mutate(epoch = dplyr::if_else(
+    dateTime < lubridate::as_datetime('2019-12-05 00:00:00'),
+    '1hr', '15min'))
+
+flow_test <- flows2 |>
+  dplyr::mutate(
+    denominator = dplyr::if_else(epoch == '1hr', 24, 96),
+    day = lubridate::as_date(dateTime)) |>
+  dplyr::group_by(epoch, day, denominator) |>
+  dplyr::summarise(n = dplyr::n()) |>
+  dplyr::ungroup() |>
+  dplyr::mutate(missingObs = denominator - n)
+
+range(flow_test$missingObs)
+
+flow_test |>
+  ggplot2::ggplot(
+    ggplot2::aes(x=day, y=missingObs, color=epoch)) +
+  ggplot2::geom_point(size=0.1) +
+  ggplot2::theme_bw()
+```
+
+```{r}
+flow_test |>
+  dplyr::filter(missingObs > 0) |>
+  dplyr::mutate(year = lubridate::year(day)) |>
+  dplyr::group_by(year) |>
+  dplyr::summarise(`number of days with missing data`=dplyr::n()) |>
+  dplyr::arrange(dplyr::desc(year))
+```
+
+## Data Sampling
+```{r}
+flows3 <- flows2 |>
+  dplyr::filter(epoch == '15min') |>
+  dplyr::mutate(outflow_type = dplyr::case_when(
+    Alston < 4800 ~ 'Turbines only',
+    Alston > 40000 ~ 'Spill',
+    .default = 'Gate operation')) |>
+  dplyr::select(-epoch, -dateTime_lag1)
+```
+
+```{r}
+flows3 |>
+  tidyr::pivot_longer(Broad:Alston) |>
+  ggplot2::ggplot(
+    ggplot2::aes(x=dateTime, y=value, group=name,
+                 # alpha=outflow_type, 
+                 color=name)) +
+  ggplot2::geom_line() +
+  ggplot2::theme_bw() +
+  ggplot2::scale_y_log10(
+    name = 'cfs', labels = scales::comma_format())
+  
+
+```
+The Broad (at Carlisle) gage has nearly as much flow as the Alston gage (on a logarithmic scale, anyway), but this graph shows that the Alston gage has a lot more flow fluctuation in the gate operation range (4,800 to 40,000 cfs).
+
+
+# Estimating "Natural" Outflows
+
+Empirical estimates of lag and proration factor
+
+## Lag Times
+Can I use the stage-flow curve to estimate a stream velocity?
+And use that to come up with travel time(s)?
+
+Or correlate with lags. Each gage could be lagged at different time-intervals...
+
+## Ungaged Inflows
+There are some ungaged inflows both upstream and downstream of the dam. 759+444+2,780 = 3,983 sqmi gaged inflow area.
+4750 - 3983 = 767 sqmi ungaged inflow area.
+4790 - 4750 = 40 sqmi ungaged outflow area.
+
+3983 / 4790 = 83% gaged.
+
+4790 / 3983 = 1.202611 proration factor. (Multiply the total gauged inflows by the proration factor to account for ungauged areas upstream of the Alston gage.)
+
+```{r}
+drainage_areas <- tibble::tribble(
+  ~gage, ~sqmi,
+  'Tyger', 759,
+  'Enoree', 444,
+  'Broad', 2780,
+  'Inflow', 4790,
+  'Alston', 4790)
+```
+
+# Flow Fluctuations
+
+Let's consider only the 15 minute data, and look at the flow fluctuations at the different gauges and as a sum of inflows.
+```{r}
+flux0 <- flows3 |>
+  dplyr::arrange(dateTime) |>
+  dplyr::mutate(
+    Inflow = (Broad + Enoree + Tyger) * 1.202611) |>
+  dplyr::mutate(
+    dplyr::across(
+      c(Broad, Enoree, Tyger, Alston, Inflow), 
+      function(x) {x - dplyr::lag(x)},
+      .names="{.col}_delta")) |>
+  dplyr::filter(time_interval == 900)
+
+flux1 <- flux0 |>
+  dplyr::select(
+    dateTime, outflow_type, dplyr::everything(),
+    -time_interval) |>
+  dplyr::rename(Broad_flow=Broad,
+                Enoree_flow=Enoree,
+                Tyger_flow=Tyger,
+                Alston_flow=Alston,
+                Inflow_flow=Inflow) |>
+  tidyr::pivot_longer(
+    cols=3:12,
+    names_to = c('gage', 'name'),
+    names_sep='_') |>
+  tidyr::pivot_wider() |>
+  dplyr::mutate(limb = dplyr::if_else(
+    delta>0, 'rising', 'falling'),
+    delta = abs(delta)) |>
+  dplyr::left_join(drainage_areas, 'gage')
+  
+```
+
+```{r warning=FALSE}
+flux1 |>
+  dplyr::filter(outflow_type == 'Gate operation') |>
+  ggplot2::ggplot(
+    ggplot2::aes(x=(delta/sqmi))) +
+  ggplot2::geom_histogram() +
+  # ggplot2::scale_y_log10() +
+  ggplot2::scale_x_log10(
+    breaks=c(0.001, 0.01, 0.1, 1),
+    labels=c(0.001, 0.01, 0.1, 1)) +
+  ggplot2::facet_wrap('gage') +
+  ggplot2::theme_bw()
+```
+
+
+# Evaluation of Alternative Metrics
+
+
+```{r eval=F}
+# Parr Reservoir Levels
+parr0 <- readRDS('../data-raw/parr0.rds')
+```
+
+
+
