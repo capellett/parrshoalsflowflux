@@ -256,9 +256,9 @@ flows3 |>
 ```
 The Broad (at Carlisle) gage has nearly as much flow as the Alston gage (on a logarithmic scale, anyway), but this graph shows that the Alston gage has a lot more flow fluctuation in the gate operation range (4,800 to 40,000 cfs). I think I can see the difference, in 2020, when one of the turbines was not operational, and flow fluctuations affected flows lower than 4,800 cfs.
 
-# Estimating "Natural" Outflows
+# Unimpaired Outflows
 
-The inflow data can be used to estimate "natural" outflows, that is, what the outflows might have been in the absence of the Parr Shoals-Monticello projects. Simply adding up the inflows is a good, simple, method, which might be refined by prorating the gaged inflows to account for ungauged area, and introducing a time lag or delay to account for the distance between the inflow gages and the outflow gage. Let's see if we can use the data to derive empirical estimates for area proration factors and lag times.
+The inflow data can be used to estimate "unimpaired" outflows, that is, what the outflows might have been in the absence of the Parr Shoals-Monticello projects. Simply adding up the inflows is a good, simple, method, which might be refined by prorating the gaged inflows to account for ungauged area, and introducing a time lag or delay to account for the distance between the inflow gages and the outflow gage. Let's see if we can use the data to derive empirical estimates for area proration factors and lag times.
 
 ## Ungaged Inflows
 There are some ungaged inflows both upstream and downstream of the dam. The total watershed area of the inflow gages is 759 + 444 + 2,780 = 3,983 square miles.
@@ -299,11 +299,14 @@ flows4 |>
   # dplyr::left_join(drainage_areas, 'gage')
 ```
 
-In a simpler world, the gaged Inflows would equal 83% of the outflows, instead they equal 87% (in this sample of observations). Whereas the watershed areas suggest that outflows would be about 20% more than the gaged inflows, they are empirically only about 15% more - this makes sense because the gaged inflow watersheds include areas of the upper piedmont and blue ridge regions which recieve more rainfall than the middle/lower piedmont, where the ungaged inflow area is.
+In a simpler world, the gaged Inflows would equal 83% of the outflows, instead they equal 87% (in this sample of observations). Whereas the watershed areas suggest that outflows would be about 20% more than the gaged inflows, they are empirically only about 15% more - this makes sense because the gaged inflow watersheds include areas of the upper piedmont and blue ridge regions which typically recieve more rainfall than the middle/lower piedmont, where the ungaged inflow area is.
 
 ## Lag Times
 
-Let's start with an estimate of lag from the total of the inflows. Then let's try to estimate lag from each inflow gage separately.
+We expect that it will take some time for water to travel from the inflow gages to the outflow gage. This is called flow routing, and a simple way to account for it is to introduce a delay to represent the travel time from upstream to downstream.
+
+Here, I'll develop an estimate of lag from the total of the inflows. This could be refined by estimating lag times separately for each inflow gage.
+
 ```{r}
 library(ggplot2)
 library(ggpmisc)
@@ -315,7 +318,7 @@ lag_calibration_plot <- function(data) {
   data |>
    ggplot2::ggplot(
       ggplot2::aes(x=Inflow, y=Alston)) +
-    geom_point(alpha=0.1) +
+    ggplot2::geom_point(alpha=0.1) +
     ggpmisc::stat_poly_line() +
     ggpmisc::stat_poly_eq(ggpmisc::use_label(c("eq", "R2"))) +
     ggplot2::theme_bw() # +
@@ -325,7 +328,7 @@ lag_calibration_plot <- function(data) {
 flows4 |>
   lag_calibration_plot()
 ```
-Reasonably good correlation. If it were a perfect correlation, there wouldn't be anything to talk about regarding flow fluctuations. Let's see if there is a better correlation when a lag time is applied to the gaged inflows. 
+Reasonably good correlation. If it were a perfect correlation, there wouldn't be anything to talk about regarding flow fluctuations. Let's see if there is a better correlation when lag times are applied to the gaged inflows. 
 
 ```{r warning=F}
 for(i in c(1,32,45)) {
@@ -336,23 +339,44 @@ for(i in c(1,32,45)) {
       ggplot2::ggtitle(paste0("Lag ", i, " timesteps")) )
 }
 ```
+Each timestep is 15 minutes, and as I applied lag times of various timesteps, I noticed marginal improvements in the regression equation - outflows match lagged inflows better than the raw inflow data. 
 
-I reviewed all of the plots and equations for lag times from 1 to 45 timesteps. The best R^2 and regression equations come from lags ranging from 31 to 34 timesteps. Thats 7hr45min to 8.5hrs. That is a long time. Is that correct? Is there something wrong with my analysis? I expected it to be less time. Compare this with the average water velocity at the gage locations to see if it makes sense.
+I reviewed all of the plots and equations for lag times from 1 to 45 timesteps. The best R^2 and regression equations come from lags ranging from 31 to 34 timesteps. Thats 7hr45min to 8.5hrs. That seems like a long time. Is that correct, or is there something wrong with my analysis? I expected it to be less time. We might want to compare this with the average water velocity at the gage locations to see if it makes sense.
 
-It might be preferable to set the Y-intercept of the regression line to zero. Also, the lag time for each inflow gage could be estimated separately. This analysis could be developed further, but it seems to indicate that there is a lag time of around 8 hours from the inflow gages to the outflow gage. If that is correct, then it should be accounted for if we are going to use an estimate of inflow to evaluate fluctuations in the outflow. 
+It might be preferable to set the Y-intercept of the regression line to zero. Also, the lag time for each inflow gage could be estimated separately. This analysis could be developed further, but it seems to indicate that there is a lag time of around 8 hours from the inflow gages to the outflow gage. This seems unlikely, the lag time is probably less than that, and the analysis above is probably confounded by the characteristics of the hydrographs (i.e., the falling limb has a lower slope than the rising limb). 
 
-These results indicate that the gaged inflows should be scaled up 15-20% and delayed by 7.75-8.5 hours to better represent "natural" flows at Alston.
+## Unimpaired outflow conclusions
 
-# Flow Fluctuations
+These results indicate that the gaged inflows could be scaled up 15-20% and delayed by 7.75-8.5 hours to better represent "natural" flows at Alston. For subsequent analysis in this memo, the unimpaired outflows are calculated from the gaged inflows scaled up by 15% and delayed by 8 hours. Further refinement of the lag time estimate is warranted if these methods are to be used for monitoring and evaluation.
 
-Alternatively, it is possible to evaluate the flow fluctuations at the Alston gage without referring to a synthetic "naturalized" streamflow dataset. 
-
-Let's consider only the 15 minute data, and look at the flow fluctuations at the different gauges and as a sum of inflows.
 ```{r}
-flux0 <- flows3 |>
+## add rows for all missing dateTimes before calculating the lag.
+missing_observations <- tibble::tibble(
+  dateTime = seq(
+    from = min(flows4$dateTime),
+    to = max(flows4$dateTime),
+    by = '15 min') ) |>
+  dplyr::anti_join(flows4, 'dateTime')
+```
+
+```{r}
+flows <- flows4 |>
+  dplyr::bind_rows(missing_observations) |>
   dplyr::arrange(dateTime) |>
-  dplyr::mutate(
-    Inflow = (Broad + Enoree + Tyger) * 1.202611) |>
+  dplyr::mutate(Unimpaired_outflow = dplyr::lag(Inflow, 32)*1.15) |>
+  dplyr::filter(!is.na(Unimpaired_outflow))
+
+usethis::use_data(flows, overwrite=T)
+```
+
+# Flow Variability
+
+Alternatively, it is possible to evaluate the flow fluctuations at the Alston gage without making direct comparisons to a synthetic unimpaired streamflow dataset. Here we will derive a new variable, `delta`, which is the instantaneous flow minus the value of the previous observation. That is to say, for each observation of flow at time "t", cfs_t, the delta is calculated by subtracting the previous observed value: delta = cfs_t - cfs_(t-1).
+
+Let's consider only the 15 minute data, and look at the flow fluctuations at the different gauges and for the synthetic inflow.
+```{r}
+flux0 <- flows |>
+  dplyr::arrange(dateTime) |>
   dplyr::mutate(
     dplyr::across(
       c(Broad, Enoree, Tyger, Alston, Inflow), 
@@ -363,7 +387,7 @@ flux0 <- flows3 |>
 flux1 <- flux0 |>
   dplyr::select(
     dateTime, outflow_type, dplyr::everything(),
-    -time_interval) |>
+    -time_interval, -Unimpaired_outflow) |>
   dplyr::rename(Broad_flow=Broad,
                 Enoree_flow=Enoree,
                 Tyger_flow=Tyger,
@@ -376,7 +400,8 @@ flux1 <- flux0 |>
   tidyr::pivot_wider() |>
   dplyr::mutate(limb = dplyr::if_else(
     delta>0, 'rising', 'falling'),
-    delta = abs(delta))
+    delta = abs(delta)) |>
+  dplyr::left_join(drainage_areas, 'gage')
   
 ```
 
@@ -384,6 +409,10 @@ flux1 <- flux0 |>
 flux <- flux1 
 usethis::use_data(flux, overwrite=T)
 ```
+
+## Delta in terms of cfs / sqmi 
+
+To make comparisons among the different gages, here I'll divide the delta cfs by the square miles of drainage area.
 
 ```{r warning=FALSE}
 flux1 |>
@@ -399,20 +428,152 @@ flux1 |>
   ggplot2::theme_bw()
 ```
 
+This plot shows the count of observations, for each gage, for different values of flow fluctuations, measured in terms of the change in flow (cfs_t1 - cfs_t0) divided by the drainage area (sqmi). This plot includes only flows classified as Gate operations (between 4,800 and 40,000 cfs at the Alston gage).
+
+Looking at the inflow gages and the synthetic inflow data, the natural rate of change for streamflow is very rarely any greater than 0.1 cfs / sqmi / 15 minutes. In contrast, many of the observations at the Alston gage include flow fluctuations of greater than 0.1 cfs/sqmi/15min, which is equivalent to about 480 cfs / 15 minutes at the Alston gage.
+
+## Delta in terms of %
+
+Here, let's look at the flow fluctuations as a percentage of the flow (delta/cfs_t). Let's also look at the rising and falling limbs of the hydrograph separately, and at the different outflow types. I'll plot the cumulative frequencies of the Delta (%) for each of the hydrographs.
+
+```{r}
+flux |>
+  dplyr::mutate(delta_percent = delta/flow) |>
+  dplyr::group_by(gage, limb) |>
+  dplyr::mutate(
+    cumulative_frequency = rank(delta_percent)/dplyr::n()) |>
+  ggplot2::ggplot(
+    ggplot2::aes(x=cumulative_frequency, y=delta_percent, color=limb)) +
+  ggplot2::facet_grid(gage ~ outflow_type) +
+  ggplot2::geom_line() +
+  ggplot2::scale_x_continuous(limits = c(0.5, NA)) +
+  # ggplot2::scale_x_log10(labels=scales::label_percent()) +
+  ggplot2::scale_y_log10(labels=scales::label_comma(),
+                         limits = c(0.001, NA)) +
+  ggplot2::theme_bw()
+```
+There are several takeaways from this plot. First, the falling limbs of the hydrographs have lower slopes than the rising limbs; that makes sense. This is illustrated by the position of the red lines being consistently underneath the blue lines.
+
+Second, and more pertinent, is that the highest percentage deltas are found at the Alston gage; that is also expected. This is illustrated in the graph, for example by tracking up the 0.75 mark on the X-axis of the first column of plots ("Gate operation"). In the inflow plots, both lines at the 0.7 mark are around 0.01 delta percent; in other words, 70% of observations are no more than 1% different from the previous observation. At the Alston gage, both lines are higher, and they rise higher still. The Alston flows vary by as much as 10% from observation to observation, while the inflow gages hardly ever vary so much.
+
+I expected the biggest differences to be in the "Gate operation" outflows, but similar differences are shown in the "Spill" and "Turbines only" outflows.
+
+## Flow variability conclusions
+
+Based on the graphical analysis above, we could conclude that changes in flow of more than 480 cfs or 5% would be very rare under a natural flow regime, and somewhat common under the historic flow fluctuations. 
 
 # Evaluation of Alternative Metrics
+
+Now that we have refined our estimate of unimpaired outflow and developed a threshold for flow variability, let's re-evaluate the ongoing reductions in flow fluctuations. We will focus on the March spawning season. We will start by comparing three alternative metrics: deviation from total gaged inflow (raw), deviation from synthetic outflow (refined), and variability over time (delta).
+
+```{r}
+flows_evaluation <- flows |>
+  dplyr::filter(lubridate::month(dateTime) == 3) |>
+  dplyr::mutate(Year = lubridate::year(dateTime),
+                Deviation_raw = Alston-Inflow,
+                Deviation_refined = Alston-Unimpaired_outflow,
+                Delta_cfs = Alston - dplyr::lag(Alston),
+                Delta_percent = (Alston - dplyr::lag(Alston))/Alston) |>
+  dplyr::select(
+    dateTime, Alston, Inflow, Unimpaired_outflow, 
+    Year, Deviation_raw:Delta_percent) |>
+  dplyr::mutate(
+    dplyr::across(Deviation_raw:Delta_percent, abs))
+```
+
+## Basic Hydrographs
+
+Basic hydrographs offer the most straightforward way to evaluate the flow fluctuations. Here the Alston gage outflows are plotted in red and the inflows (total of the three inflow gages) are plotted in black, for March of each year from 2020 to 2024.
+
+```{r fig.height=6, fig.width=6}
+flows_evaluation |>
+  ggplot2::ggplot(
+    ggplot2::aes(x=dateTime, y=Alston)) +
+  ggplot2::geom_line(color='red') +
+  ggplot2::geom_line(
+    ggplot2::aes(y=Inflow)) +
+    # ggplot2::aes(y=Unimpaired_outflow)) +
+  ggplot2::scale_y_log10(name='cfs') +
+  ggplot2::facet_wrap('Year', ncol=1, scales='free_x') +
+  ggplot2::theme_bw()
+```
+Graphically, the improvements from 2020 seem substantial. 2022 seems to have been a good year, as well as the latter half of March 2024. How can we evaluate reductions in flow fluctuations in a more objective manner? What can we measure to assess performance?
+
+## Tabular Summary 
+
+In the table below summarises the root mean square of different performance metrics for the 15-minute data and the month of March. `Deviation_raw` is the Alston flow minus the total inflow; `Deviation_refined` is the Alston flow minus the unimpaired outflow (total inflow * 1.15, delayed 8 hours); `Delta_cfs` is the change in flow rate (cfs) from observation to observation at the Alston gage; `Delta_percent` is the percentage change from observation to observation at the Alston gage.  
+
+```{r}
+flows_evaluation |>
+  dplyr::mutate(
+    dplyr::across(Deviation_raw:Delta_percent, function(x) x^2)) |>
+  dplyr::group_by(Year) |>
+  dplyr::summarise(
+    dplyr::across(Deviation_raw:Delta_percent, mean, na.rm=T)) |>
+  dplyr::mutate(
+    dplyr::across(Deviation_raw:Delta_percent, sqrt)) |>
+  dplyr::mutate(
+    dplyr::across(Deviation_raw:Delta_percent, round, 2))
+```
+The different performance metrics tell different stories of progress over the years. Hard to say from these results which metric is best suited to evaluate the flow fluctuations. One thing to note is that the deviations calculated from the refined unimpaired outflows tend to be lower than the deviations calculated from the raw inflow data. 
+
+## Detailed Hydrographs
+
+Maybe we can get a better idea by taking a closer look at the data. The plots below show the different calculations of flow fluctuation for every observation during March.
+
+```{r fig.height=6, fig.width=6}
+
+flows_evaluation |>
+  dplyr::select(Year, dateTime, Alston, Inflow, Deviation_raw:Delta_percent) |>
+  tidyr::pivot_longer(Alston:Delta_percent) |>
+  dplyr::mutate(Type = dplyr::case_match(
+    name, c('Alston', 'Inflow') ~ 'Flow (cfs)',
+    c('Deviation_raw', 'Deviation_refined') ~ 'Deviation (cfs)',
+    'Delta_cfs' ~ 'Delta (cfs)',
+    'Delta_percent' ~ 'Delta (%)') ) |>
+  dplyr::group_by(Year) |>
+  dplyr::group_walk(
+    function(.x, .y) {
+      print(
+      .x |>
+        ggplot2::ggplot(
+          ggplot2::aes(x=dateTime, y=value, group=name, color=name)) +
+        ggplot2::geom_line() +
+        ggplot2::facet_wrap('Type', scales='free_y', ncol=1) +
+        ggplot2::theme_bw() +
+        ggplot2::theme(legend.position='bottom') +
+        ggplot2::scale_color_manual(
+          values = c(
+            Alston='red', Inflow='black', Deviation_raw='blue', 
+            Deviation_refined='green', Delta_cfs='gray', 
+            Delta_percent='gray') ) +
+        ggplot2::ggtitle(.y)  ) })
+
+# ggplot2::ggsave('metric_evaluation.png',
+#                 width = 6, height = 6)
+  
+```
+A few things stand out to me from these plots. Again, the refined estimate of deviation (using unimpaired outflow) seems to do better than the deviation metric using raw inflow. The unimpaired outflow calculation could likely be improved using a slightly more sophisticated flow routing algorithm than a simple lag time. For example, during the high flow event in late March of 2021, it seems like the outflow hydrograph is a bit wider than the inflow hydrograph - this make sense hydrologically. The translation of upstream flows to downstream flows is not simply a lag in time, but the flow pulses also tend to be moderated (lower peaks and longer-lasting high flows). Getting that right could help clarify the true effects of the flow-fluctuation-reduction efforts.
+
+Another notable result in these plots is the early outliers in the Delta metrics for years 2022 and 2023. The summary results might look a lot different if those outliers were removed. Removing them from the analysis seems warranted as they appear to be erroneous artifacts.
+
+The delta_cfs and deviation (cfs) based metrics might over-penalize for fluctuations at high-flow (for example, late March 2021), while such fluctuations might not be so impactful for aquatic life. Alternatively, the delta_percent based metric might over-penalize for minor fluctuations at low-flows (for example, mid to late March, 2024). 
+
+# Conclusions
+
+It is exciting to see that the Parr Shoals operators can make significant reductions in the flow fluctuations downstream of the Parr dam. Success in this effort was not a foregone conclusion, and it should be celebrated as a real win for all of our water resource stakeholders. It seems that continued improvements are possible, and it may be the case that refining our metrics can faciliate continued success. In this memo, I've implemented a few refinements based on hydrology theory and empirical evidence, and calculated a few different metrics for evaluating flow-fluctuations. 
+
+Scaling up the inflows by 15-20% seems reasonable. If I understand correctly, this is already being done at least in some of the analyses presented previously. Introducing a lag time, or perhaps a more refined method for translating upstream inflows to unimpaired downstream outflows, may also be warranted. 
+
+The observation-delta metrics of flow variability have an advantage of not requiring an estimate of unimpaired outflows. Because there is not much storage capacity in or net withdrawal from Parr Shoals reservoir (compared to the inflows), the outflow will necessarily match inflow at a long enough time-scale. Thus, simply reducing fluctuations in outflow (managing outflows for lower delta values) should result in a more natural streamflow regime. There is inherent uncertainty in all of the flow datasets, so methods which rely on less data could be more robust. Also, timing of flows (in terms of hours or minutes) can be assumed to have negligible ecological impact, but slight changes in timing can have substantial impacts on the inflow-based metrics of flow fluctuations.
+
+More information regarding gate operations and the real-world constraints faced by the reservoir operators is likely relevant to this effort. 
+
 
 
 ```{r eval=F}
 # Parr Reservoir Levels
 parr0 <- readRDS('../data-raw/parr0.rds')
 ```
-
-Annual summaries
-
-Plot every March spawning season
-
-Plot cumulative fluctuation metrics and compare their performance under different streamflows (i.e. in March).
-
 
 
